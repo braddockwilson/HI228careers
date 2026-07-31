@@ -808,5 +808,87 @@
   });
 </script>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+  (function () {
+    var SUPABASE_URL = 'https://yyzkguadnddegytcanuw.supabase.co';
+    var SUPABASE_KEY = 'sb_publishable_ZnJPU7YN7MJADiFGs_SsYw_s2HvQi9G';
+    var sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    function getAll(form, name) { return Array.from(form.querySelectorAll('[name="' + name + '"]:checked')).map(function (el) { return el.value; }); }
+    function getOne(form, name) { var el = form.querySelector('[name="' + name + '"]:checked'); return el ? el.value : null; }
+    function getVal(form, name) { var el = form.querySelector('[name="' + name + '"]'); return el ? el.value : null; }
+    function yn(v) { return v === 'Yes' ? true : v === 'No' ? false : null; }
+    function attachSupabaseSync() {
+      var form = document.querySelector('form');
+      if (!form) return;
+      form.addEventListener('submit', function () {
+        try {
+          var countyRaw = getVal(form, 'County') || '';
+          var county = countyRaw.indexOf('Mobile') !== -1 ? 'Mobile' : countyRaw.indexOf('Baldwin') !== -1 ? 'Baldwin' : null;
+          var fullName = (getVal(form, 'Full Name') || '').trim();
+          var spaceIdx = fullName.indexOf(' ');
+          var firstName = spaceIdx === -1 ? fullName : fullName.slice(0, spaceIdx);
+          var lastName = spaceIdx === -1 ? '' : fullName.slice(spaceIdx + 1);
+          var days = getAll(form, 'Available Days');
+          var times = getAll(form, 'Available Times');
+          var certifications = getAll(form, 'Certifications').filter(function (c) { return c !== 'None'; });
+          var record = {
+            first_name: firstName || fullName || 'Unknown',
+            last_name: lastName,
+            email: getVal(form, 'Email'),
+            phone: getVal(form, 'Phone'),
+            county: county,
+            address: getVal(form, 'City/ZIP'),
+            availability: days.concat(times),
+            has_transportation: yn(getOne(form, 'Will Drive')),
+            has_caregiving_experience: yn(getOne(form, '1yr+ Experience')),
+            certifications: certifications,
+            source: 'website',
+            details: {
+              position_type: getOne(form, 'Position Type'),
+              roles: getAll(form, 'Roles'),
+              age_19_plus: getOne(form, 'Age 19+'),
+              work_authorized: getOne(form, 'Work Authorized'),
+              drivers_license: getOne(form, 'Drivers License'),
+              auto_insurance: getOne(form, 'Auto Insurance'),
+              will_drive: getOne(form, 'Will Drive'),
+              diploma_ged: getOne(form, 'Diploma/GED'),
+              lift_25lbs: getOne(form, 'Lift 25lbs'),
+              experience_with_older_adults: getVal(form, 'Experience with Older Adults'),
+              english_ability: getVal(form, 'English Ability'),
+              other_languages: getVal(form, 'Other Languages'),
+              reason_for_applying: getVal(form, 'Reason for Applying'),
+              what_matters_most: getVal(form, 'What Matters Most'),
+              top_benefit: getVal(form, 'Top Benefit')
+            }
+          };
+          sbClient.from('applicants').insert(record).select().single().then(function (res) {
+            if (res.error) { console.error('Supabase insert error:', res.error); return; }
+            var applicantId = res.data.id;
+            var fileInput = form.querySelector('[name="Resume"]');
+            var file = fileInput && fileInput.files && fileInput.files[0];
+            if (file) {
+              var path = applicantId + '-' + Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+              sbClient.storage.from('resumes').upload(path, file).then(function (upRes) {
+                if (upRes.error) { console.error('Resume upload error:', upRes.error); return; }
+                sbClient.from('applicants').update({ resume_url: path }).eq('id', applicantId).then(function (updRes) {
+                  if (updRes.error) console.error('Resume link update error:', updRes.error);
+                });
+              });
+            }
+          });
+        } catch (err) {
+          console.error('CRM sync error:', err);
+        }
+      }, true);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', attachSupabaseSync);
+    } else {
+      attachSupabaseSync();
+    }
+  })();
+</script>
+  
 </body>
 </html>
