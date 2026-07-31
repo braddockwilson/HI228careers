@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>HI228 Caregiver Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root {
+    --hi-blue: #003d6b;
+    --hi-blue-light: #0074c8;
+    --hi-yellow: #ffc72c;
+    --glass-bg: rgba(255,255,255,0.65);
+    --glass-border: rgba(255,255,255,0.4);
+    --text-dark: #1a2733;
+    --text-mute: #5b6b7a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--text-dark);
+    background: linear-gradient(135deg, #0a2540 0%, #003d6b 40%, #0074c8 100%);
+    background-attachment: fixed;
+  }
+  #app { min-height: 100vh; display: flex; flex-direction: column; }
+
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+
+  /* ---------- LOGIN ---------- */
+  #loginScreen {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .login-card {
+    width: 100%; max-width: 380px; padding: 40px 32px;
+    text-align: center;
+  }
+  .login-card h1 { font-size: 20px; margin: 0 0 4px; color: var(--hi-blue); }
+  .login-card p.sub { color: var(--text-mute); font-size: 13px; margin: 0 0 28px; }
+  .field { text-align: left; margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.03em; }
+  input[type=email], input[type=password], input[type=text], input[type=tel], select, textarea {
+    width: 100%; padding: 11px 14px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.12);
+    background: rgba(255,255,255,0.9); font-size: 14px; font-family: inherit; color: var(--text-dark);
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--hi-blue-light); outline-offset: 1px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 11px 20px; border-radius: 10px; border: none; cursor: pointer;
+    font-size: 14px; font-weight: 600; font-family: inherit; transition: transform 0.1s, opacity 0.15s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--hi-blue); color: white; width: 100%; }
+  .btn-primary:hover { background: var(--hi-blue-light); }
+  .btn-secondary { background: rgba(0,0,0,0.06); color: var(--text-dark); }
+  .btn-secondary:hover { background: rgba(0,0,0,0.1); }
+  .btn-yellow { background: var(--hi-yellow); color: var(--hi-blue); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .error-msg { color: #c0392b; font-size: 13px; margin-top: 10px; min-height: 16px; }
+
+  /* ---------- HEADER ---------- */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px; margin: 16px 16px 0; flex-wrap: wrap; gap: 12px;
+  }
+  header .brand { display: flex; align-items: center; gap: 10px; }
+  header .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--hi-yellow); }
+  header h1 { font-size: 16px; margin: 0; color: var(--hi-blue); }
+  header .sub { font-size: 12px; color: var(--text-mute); }
+  header .right { display: flex; align-items: center; gap: 14px; }
+  header .me { font-size: 13px; color: var(--text-dark); font-weight: 600; }
+
+  /* ---------- TOOLBAR ---------- */
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin: 12px 16px 0; padding: 12px 16px;
+  }
+  .toolbar input[type=text] { max-width: 220px; }
+  .chip-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: rgba(0,0,0,0.06); color: var(--text-mute); border: 1px solid transparent; user-select: none;
+  }
+  .chip.active { background: var(--hi-blue); color: white; }
+  .spacer { flex: 1; }
+  .view-toggle { display: flex; gap: 4px; background: rgba(0,0,0,0.06); border-radius: 10px; padding: 3px; }
+  .view-toggle button {
+    border: none; background: transparent; padding: 6px 14px; border-radius: 8px; font-size: 12px;
+    font-weight: 600; cursor: pointer; color: var(--text-mute);
+  }
+  .view-toggle button.active { background: white; color: var(--hi-blue); }
+
+  main { flex: 1; padding: 12px 16px 24px; overflow: auto; }
+
+  /* ---------- KANBAN ---------- */
+  #kanbanView { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 12px; align-items: flex-start; }
+  .kanban-col { min-width: 260px; max-width: 260px; flex-shrink: 0; padding: 12px; }
+  .kanban-col h3 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-mute);
+    margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .kanban-col h3 .count {
+    background: rgba(0,0,0,0.08); border-radius: 999px; padding: 1px 8px; font-size: 11px; color: var(--text-dark);
+  }
+  .card {
+    background: white; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 4px solid var(--hi-blue-light); transition: transform .1s;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,0.14); }
+  .card .name { font-weight: 700; font-size: 13.5px; margin-bottom: 3px; }
+  .card .meta { font-size: 11.5px; color: var(--text-mute); }
+  .card .tags { margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap; }
+  .tag { font-size: 10px; padding: 2px 7px; border-radius: 999px; background: rgba(0,61,107,0.08); color: var(--hi-blue); font-weight: 600; }
+
+  /* ---------- TABLE ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--text-mute); padding: 10px 12px; border-bottom: 1px solid rgba(0,0,0,0.08); }
+  td { padding: 12px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: rgba(0,116,200,0.06); }
+  .status-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; display: inline-block; }
+  .status-new { background: #e3f2fd; color: #1565c0; }
+  .status-screening { background: #fff8e1; color: #b8860b; }
+  .status-interview_scheduled { background: #ede7f6; color: #5e35b1; }
+  .status-interviewed { background: #e0f2f1; color: #00695c; }
+  .status-offer { background: #fce4ec; color: #ad1457; }
+  .status-hired { background: #e8f5e9; color: #2e7d32; }
+  .status-rejected { background: #ffebee; color: #c62828; }
+  .status-withdrawn { background: #eceff1; color: #546e7a; }
+
+  #tableWrap { padding: 4px; }
+  #emptyState { text-align: center; padding: 60px 20px; color: var(--text-mute); }
+
+  /* ---------- MODAL ---------- */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(10,20,30,0.55); display: none;
+    align-items: center; justify-content: center; padding: 20px; z-index: 100;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    width: 100%; max-width: 640px; max-height: 88vh; overflow-y: auto; padding: 28px;
+    background: rgba(255,255,255,0.92);
+  }
+  .modal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+  .modal-head h2 { margin: 0 0 4px; font-size: 19px; color: var(--hi-blue); }
+  .modal-head .close-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-mute); }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; margin-bottom: 18px; }
+  .detail-grid .full { grid-column: 1 / -1; }
+  .detail-item label { display: block; font-size: 10.5px; text-transform: uppercase; color: var(--text-mute); font-weight: 700; margin-bottom: 3px; letter-spacing: 0.03em; }
+  .detail-item .val { font-size: 13.5px; }
+  .section-title { font-size: 12px; text-transform: uppercase; color: var(--text-mute); font-weight: 700; margin: 22px 0 10px; letter-spacing: 0.03em; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px; }
+  .row-flex { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .activity-item { font-size: 12.5px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  .activity-item .when { color: var(--text-mute); font-size: 11px; }
+  #noteInput { min-height: 60px; resize: vertical; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--hi-blue); color: white; padding: 10px 20px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity 0.25s; z-index: 200;
+  }
+  .toast.show { opacity: 1; }
+
+  ::-webkit-scrollbar { height: 8px; width: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 8px; }
+
+  @media (max-width: 640px) {
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- LOGIN -->
+  <div id="loginScreen">
+    <div class="glass login-card">
+      <h1>Home Instead 228</h1>
+      <p class="sub">Caregiver Applicant Portal</p>
+      <form id="loginForm">
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="loginEmail" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="loginBtn">Sign In</button>
+        <div class="error-msg" id="loginError"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" style="display:none;">
+    <header class="glass">
+      <div class="brand">
+        <div class="dot"></div>
+        <div>
+          <h1>Home Instead 228 &mdash; Caregiver Portal</h1>
+          <div class="sub">Mobile &amp; Baldwin County</div>
+        </div>
+      </div>
+      <div class="right">
+        <span class="me" id="meLabel"></span>
+        <button class="btn btn-secondary" id="refreshBtn">Refresh</button>
+        <button class="btn btn-secondary" id="logoutBtn">Log Out</button>
+      </div>
+    </header>
+
+    <div class="toolbar glass">
+      <input type="text" id="searchInput" placeholder="Search name, email, phone...">
+      <div class="chip-group" id="countyChips">
+        <span class="chip active" data-county="">All Counties</span>
+        <span class="chip" data-county="Mobile">Mobile</span>
+        <span class="chip" data-county="Baldwin">Baldwin</span>
+      </div>
+      <div class="chip-group" id="statusChips">
+        <span class="chip active" data-status="">All Statuses</span>
+        <span class="chip" data-status="new">New</span>
+        <span class="chip" data-status="screening">Screening</span>
+        <span class="chip" data-status="interview_scheduled">Interview Sched.</span>
+        <span class="chip" data-status="interviewed">Interviewed</span>
+        <span class="chip" data-status="offer">Offer</span>
+        <span class="chip" data-status="hired">Hired</span>
+        <span class="chip" data-status="rejected">Rejected</span>
+        <span class="chip" data-status="withdrawn">Withdrawn</span>
+      </div>
+      <div class="spacer"></div>
+      <div class="view-toggle">
+        <button id="viewKanbanBtn" class="active">Board</button>
+        <button id="viewTableBtn">List</button>
+      </div>
+    </div>
+
+    <main>
+      <div id="kanbanView"></div>
+      <div id="tableView" class="glass" style="display:none;">
+        <div id="tableWrap"></div>
+      </div>
+      <div id="emptyState" style="display:none;">No applicants match these filters yet.</div>
+    </main>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal glass" id="modalBody"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://yyzkguadnddegytcanuw.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ZnJPU7YN7MJADiFGs_SsYw_s2HvQi9G';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const STATUS_LABELS = {
+  new: 'New', screening: 'Screening', interview_scheduled: 'Interview Scheduled',
+  interviewed: 'Interviewed', offer: 'Offer Extended', hired: 'Hired',
+  rejected: 'Rejected', withdrawn: 'Withdrawn'
+};
+const STATUS_ORDER = ['new','screening','interview_scheduled','interviewed','offer','hired','rejected','withdrawn'];
+
+let currentUser = null;
+let staffList = [];
+let applicants = [];
+let filters = { county: '', status: '', search: '' };
+let currentView = 'kanban';
+
+// ---------- AUTH ----------
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const btn = document.getElementById('loginBtn');
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false;
+  btn.textContent = 'Sign In';
+  if (error) {
+    errEl.textContent = error.message;
+    return;
+  }
+  await initDashboard();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await sb.auth.signOut();
+  location.reload();
+});
+
+async function checkSession() {
+  const { data } = await sb.auth.getSession();
+  if (data.session) {
+    await initDashboard();
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('dashboard').style.display = 'none';
+  }
+}
+
+async function initDashboard() {
+  const { data: { user } } = await sb.auth.getUser();
+  const { data: staffRow } = await sb.from('staff').select('*').eq('id', user.id).maybeSingle();
+  if (!staffRow) {
+    document.getElementById('loginError').textContent = 'Your account is not set up as staff yet. Contact your admin.';
+    document.getElementById('loginScreen').style.display = 'flex';
+    return;
+  }
+  currentUser = staffRow;
+  document.getElementById('meLabel').textContent = staffRow.full_name + ' (' + staffRow.role + ')';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  await loadStaff();
+  await loadApplicants();
+}
+
+// ---------- DATA ----------
+async function loadStaff() {
+  const { data, error } = await sb.from('staff').select('*').order('full_name');
+  if (!error) staffList = data;
+}
+
+async function loadApplicants() {
+  const { data, error } = await sb.from('applicants').select('*').order('created_at', { ascending: false });
+  if (error) { showToast('Error loading applicants: ' + error.message); return; }
+  applicants = data || [];
+  render();
+}
+
+function staffName(id) {
+  const s = staffList.find(x => x.id === id);
+  return s ? s.full_name : 'Unassigned';
+}
+
+// ---------- FILTER / RENDER ----------
+function getFiltered() {
+  return applicants.filter(a => {
+    if (filters.county && a.county !== filters.county) return false;
+    if (filters.status && a.status !== filters.status) return false;
+    if (filters.search) {
+      const s = filters.search.toLowerCase();
+      const hay = ((a.first_name||'') + ' ' + (a.last_name||'') + ' ' + (a.email||'') + ' ' + (a.phone||'')).toLowerCase();
+      if (!hay.includes(s)) return false;
+    }
+    return true;
+  });
+}
+
+function render() {
+  const list = getFiltered();
+  document.getElementById('emptyState').style.display = list.length ? 'none' : 'block';
+  if (currentView === 'kanban') renderKanban(list); else renderTable(list);
+}
+
+function renderKanban(list) {
+  const wrap = document.getElementById('kanbanView');
+  wrap.innerHTML = '';
+  STATUS_ORDER.forEach(status => {
+    const col = document.createElement('div');
+    col.className = 'kanban-col glass';
+    const items = list.filter(a => a.status === status);
+    col.innerHTML = '<h3>' + STATUS_LABELS[status] + ' <span class="count">' + items.length + '</span></h3>';
+    items.forEach(a => col.appendChild(makeCard(a)));
+    wrap.appendChild(col);
+  });
+}
+
+function makeCard(a) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.onclick = () => openDetail(a.id);
+  card.innerHTML =
+    '<div class="name">' + esc(a.first_name) + ' ' + esc(a.last_name) + '</div>' +
+    '<div class="meta">' + esc(a.county || '—') + ' &middot; ' + esc(a.phone || a.email || '') + '</div>' +
+    '<div class="tags">' +
+      (a.assigned_to ? '<span class="tag">' + esc(staffName(a.assigned_to)) + '</span>' : '') +
+      (a.certifications && a.certifications.length ? '<span class="tag">' + esc(a.certifications[0]) + (a.certifications.length > 1 ? ' +' + (a.certifications.length-1) : '') + '</span>' : '') +
+    '</div>';
+  return card;
+}
+
+function renderTable(list) {
+  const wrap = document.getElementById('tableWrap');
+  let html = '<table><thead><tr><th>Name</th><th>County</th><th>Contact</th><th>Status</th><th>Assigned</th><th>Applied</th></tr></thead><tbody>';
+  list.forEach(a => {
+    html += '<tr onclick="openDetail(\'' + a.id + '\')">' +
+      '<td><strong>' + esc(a.first_name) + ' ' + esc(a.last_name) + '</strong></td>' +
+      '<td>' + esc(a.county || '—') + '</td>' +
+      '<td>' + esc(a.phone || '') + '<br><span style="color:var(--text-mute);font-size:11.5px;">' + esc(a.email || '') + '</span></td>' +
+      '<td><span class="status-badge status-' + a.status + '">' + STATUS_LABELS[a.status] + '</span></td>' +
+      '<td>' + esc(staffName(a.assigned_to)) + '</td>' +
+      '<td>' + new Date(a.created_at).toLocaleDateString() + '</td>' +
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// ---------- FILTER CONTROLS ----------
+document.getElementById('countyChips').addEventListener('click', (e) => {
+  if (!e.target.dataset.hasOwnProperty('county')) return;
+  document.querySelectorAll('#countyChips .chip').forEach(c => c.classList.remove('active'));
+  e.target.classList.add('active');
+  filters.county = e.target.dataset.county;
+  render();
+});
+document.getElementById('statusChips').addEventListener('click', (e) => {
+  if (!e.target.dataset.hasOwnProperty('status')) return;
+  document.querySelectorAll('#statusChips .chip').forEach(c => c.classList.remove('active'));
+  e.target.classList.add('active');
+  filters.status = e.target.dataset.status;
+  render();
+});
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  filters.search = e.target.value.trim();
+  render();
+});
+document.getElementById('refreshBtn').addEventListener('click', () => { loadApplicants(); showToast('Refreshed'); });
+
+document.getElementById('viewKanbanBtn').addEventListener('click', () => switchView('kanban'));
+document.getElementById('viewTableBtn').addEventListener('click', () => switchView('table'));
+function switchView(v) {
+  currentView = v;
+  document.getElementById('viewKanbanBtn').classList.toggle('active', v === 'kanban');
+  document.getElementById('viewTableBtn').classList.toggle('active', v === 'table');
+  document.getElementById('kanbanView').style.display = v === 'kanban' ? 'flex' : 'none';
+  document.getElementById('tableView').style.display = v === 'table' ? 'block' : 'none';
+  render();
+}
+
+// ---------- DETAIL MODAL ----------
+async function openDetail(id) {
+  const a = applicants.find(x => x.id === id);
+  if (!a) return;
+  const { data: activity } = await sb.from('activity_log').select('*').eq('applicant_id', id).order('created_at', { ascending: false });
+
+  let resumeLink = '<span style="color:var(--text-mute);">No resume on file</span>';
+  if (a.resume_url) {
+    const { data: signed } = await sb.storage.from('resumes').createSignedUrl(a.resume_url, 3600);
+    if (signed && signed.signedUrl) {
+      resumeLink = '<a href="' + signed.signedUrl + '" target="_blank" class="btn btn-yellow" style="text-decoration:none;">View Resume</a>';
+    }
+  }
+
+  const statusOptions = STATUS_ORDER.map(s =>
+    '<option value="' + s + '"' + (s === a.status ? ' selected' : '') + '>' + STATUS_LABELS[s] + '</option>'
+  ).join('');
+  const staffOptions = '<option value="">Unassigned</option>' + staffList.map(s =>
+    '<option value="' + s.id + '"' + (s.id === a.assigned_to ? ' selected' : '') + '>' + esc(s.full_name) + '</option>'
+  ).join('');
+
+  const activityHtml = (activity || []).map(ac =>
+    '<div class="activity-item"><div>' + esc(ac.detail || ac.action) + '</div><div class="when">' + new Date(ac.created_at).toLocaleString() + '</div></div>'
+  ).join('') || '<div style="color:var(--text-mute);font-size:12.5px;">No activity yet.</div>';
+
+  document.getElementById('modalBody').innerHTML = `
+    <div class="modal-head">
+      <div>
+        <h2>${esc(a.first_name)} ${esc(a.last_name)}</h2>
+        <div style="color:var(--text-mute);font-size:12.5px;">Applied ${new Date(a.created_at).toLocaleDateString()} &middot; Source: ${esc(a.source)}</div>
+      </div>
+      <button class="close-btn" onclick="closeModal()">&times;</button>
+    </div>
+
+    <div class="detail-grid">
+      <div class="detail-item"><label>Email</label><div class="val">${esc(a.email)}</div></div>
+      <div class="detail-item"><label>Phone</label><div class="val">${esc(a.phone || '—')}</div></div>
+      <div class="detail-item"><label>County</label><div class="val">${esc(a.county || '—')}</div></div>
+      <div class="detail-item"><label>Address</label><div class="val">${esc(a.address || '—')}</div></div>
+      <div class="detail-item"><label>Transportation</label><div class="val">${a.has_transportation === true ? 'Yes' : a.has_transportation === false ? 'No' : '—'}</div></div>
+      <div class="detail-item"><label>Caregiving Experience</label><div class="val">${a.has_caregiving_experience === true ? 'Yes' : a.has_caregiving_experience === false ? 'No' : '—'}</div></div>
+      <div class="detail-item full"><label>Availability</label><div class="val">${(a.availability||[]).map(esc).join(', ') || '—'}</div></div>
+      <div class="detail-item full"><label>Certifications</label><div class="val">${(a.certifications||[]).map(esc).join(', ') || '—'}</div></div>
+      <div class="detail-item full"><label>Resume</label><div class="val">${resumeLink}</div></div>
+    </div>
+
+    <div class="row-flex">
+      <div class="field" style="flex:1;min-width:180px;margin-bottom:0;">
+        <label>Status</label>
+        <select id="statusSelect">${statusOptions}</select>
+      </div>
+      <div class="field" style="flex:1;min-width:180px;margin-bottom:0;">
+        <label>Assigned To</label>
+        <select id="assignSelect">${staffOptions}</select>
+      </div>
+      <button class="btn btn-primary" style="margin-top:18px;" onclick="saveChanges('${a.id}')">Save</button>
+    </div>
+
+    <div class="section-title">Add Note</div>
+    <textarea id="noteInput" placeholder="Log a call, interview feedback, etc."></textarea>
+    <div style="margin-top:8px;">
+      <button class="btn btn-secondary" onclick="addNote('${a.id}')">Add Note</button>
+    </div>
+
+    <div class="section-title">Activity</div>
+    <div id="activityList">${activityHtml}</div>
+  `;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'modalOverlay') closeModal();
+});
+
+async function saveChanges(id) {
+  const newStatus = document.getElementById('statusSelect').value;
+  const newAssigned = document.getElementById('assignSelect').value || null;
+  const a = applicants.find(x => x.id === id);
+
+  const updates = {};
+  const logs = [];
+  if (newStatus !== a.status) {
+    updates.status = newStatus;
+    logs.push({ applicant_id: id, staff_id: currentUser.id, action: 'status_change', detail: currentUser.full_name + ' changed status to ' + STATUS_LABELS[newStatus] });
+  }
+  if (newAssigned !== a.assigned_to) {
+    updates.assigned_to = newAssigned;
+    logs.push({ applicant_id: id, staff_id: currentUser.id, action: 'assigned', detail: currentUser.full_name + ' assigned to ' + (newAssigned ? staffName(newAssigned) : 'Unassigned') });
+  }
+  if (Object.keys(updates).length === 0) { showToast('No changes'); return; }
+
+  const { error } = await sb.from('applicants').update(updates).eq('id', id);
+  if (error) { showToast('Error: ' + error.message); return; }
+  if (logs.length) await sb.from('activity_log').insert(logs);
+
+  showToast('Saved');
+  closeModal();
+  await loadApplicants();
+}
+
+async function addNote(id) {
+  const text = document.getElementById('noteInput').value.trim();
+  if (!text) return;
+  const { error } = await sb.from('activity_log').insert({
+    applicant_id: id, staff_id: currentUser.id, action: 'note',
+    detail: currentUser.full_name + ': ' + text
+  });
+  if (error) { showToast('Error: ' + error.message); return; }
+  document.getElementById('noteInput').value = '';
+  showToast('Note added');
+  openDetail(id);
+}
+
+// ---------- TOAST ----------
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+checkSession();
+</script>
+</body>
+</html>
