@@ -832,7 +832,9 @@
           var days = getAll(form, 'Available Days');
           var times = getAll(form, 'Available Times');
           var certifications = getAll(form, 'Certifications').filter(function (c) { return c !== 'None'; });
+          var applicantId = crypto.randomUUID();
           var record = {
+            id: applicantId,
             first_name: firstName || fullName || 'Unknown',
             last_name: lastName,
             email: getVal(form, 'Email'),
@@ -862,9 +864,8 @@
               top_benefit: getVal(form, 'Top Benefit')
             }
           };
-          sbClient.from('applicants').insert(record).select().single().then(function (res) {
+          sbClient.from('applicants').insert(record).then(function (res) {
             if (res.error) { console.error('Supabase insert error:', res.error); return; }
-            var applicantId = res.data.id;
             var fileInput = form.querySelector('[name="Resume"]');
             var file = fileInput && fileInput.files && fileInput.files[0];
             if (file) {
