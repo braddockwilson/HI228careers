@@ -208,13 +208,13 @@
   <div id="forgotScreen" style="display:none; flex:1; align-items: center; justify-content: center; padding: 24px;">
     <div class="glass login-card">
       <h1>Reset Password</h1>
-      <p class="sub">Enter your email and we'll send you a reset link.</p>
+      <p class="sub">Enter your email and we'll send you a reset code.</p>
       <form id="forgotForm">
         <div class="field">
           <label>Email</label>
           <input type="email" id="forgotEmail" autocomplete="username" required>
         </div>
-        <button type="submit" class="btn btn-primary" id="forgotBtn">Send Reset Link</button>
+        <button type="submit" class="btn btn-primary" id="forgotBtn">Send Reset Code</button>
         <div class="error-msg" id="forgotError"></div>
       </form>
       <div style="margin-top:14px;">
@@ -223,12 +223,22 @@
     </div>
   </div>
 
-  <!-- SET NEW PASSWORD (from recovery link) -->
+  <!-- SET NEW PASSWORD (via emailed code, or recovery link) -->
   <div id="resetScreen" style="display:none; flex:1; align-items: center; justify-content: center; padding: 24px;">
     <div class="glass login-card">
       <h1>Set New Password</h1>
-      <p class="sub">Choose a new password for your account.</p>
+      <p class="sub" id="resetSub">Enter the code from your email, then choose a new password.</p>
       <form id="resetForm">
+        <div id="resetCodeGroup">
+          <div class="field">
+            <label>Email</label>
+            <input type="email" id="resetEmail" autocomplete="username">
+          </div>
+          <div class="field">
+            <label>Reset Code</label>
+            <input type="text" id="resetCode" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code from email">
+          </div>
+        </div>
         <div class="field">
           <label>New Password</label>
           <input type="password" id="newPassword" autocomplete="new-password" minlength="6" required>
@@ -358,6 +368,8 @@ document.getElementById('backToLoginLink').addEventListener('click', (e) => {
   document.getElementById('loginScreen').style.display = 'flex';
 });
 
+let recoverySessionActive = false;
+
 document.getElementById('forgotForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = document.getElementById('forgotEmail').value.trim();
@@ -371,13 +383,15 @@ document.getElementById('forgotForm').addEventListener('submit', async (e) => {
     redirectTo: window.location.origin + window.location.pathname
   });
   btn.disabled = false;
-  btn.textContent = 'Send Reset Link';
+  btn.textContent = 'Send Reset Code';
   if (error) {
     errEl.textContent = error.message;
     return;
   }
-  errEl.style.color = '#2e7d32';
-  errEl.textContent = 'Check your email for a reset link.';
+  document.getElementById('resetEmail').value = email;
+  document.getElementById('forgotScreen').style.display = 'none';
+  document.getElementById('resetScreen').style.display = 'flex';
+  showToast('Check your email for a reset code.');
 });
 
 document.getElementById('resetForm').addEventListener('submit', async (e) => {
@@ -389,7 +403,28 @@ document.getElementById('resetForm').addEventListener('submit', async (e) => {
   errEl.textContent = '';
   if (p1 !== p2) { errEl.textContent = 'Passwords do not match.'; return; }
   if (p1.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+
   btn.disabled = true;
+
+  if (!recoverySessionActive) {
+    const email = document.getElementById('resetEmail').value.trim();
+    const code = document.getElementById('resetCode').value.trim();
+    if (!email || !code) {
+      errEl.textContent = 'Enter your email and the code from your reset email.';
+      btn.disabled = false;
+      return;
+    }
+    btn.textContent = 'Verifying code...';
+    const { error: otpError } = await sb.auth.verifyOtp({ email, token: code, type: 'recovery' });
+    if (otpError) {
+      errEl.textContent = otpError.message;
+      btn.disabled = false;
+      btn.textContent = 'Set Password';
+      return;
+    }
+    recoverySessionActive = true;
+  }
+
   btn.textContent = 'Saving...';
   const { error } = await sb.auth.updateUser({ password: p1 });
   btn.disabled = false;
@@ -677,14 +712,25 @@ function showToast(msg) {
 
 sb.auth.onAuthStateChange((event, session) => {
   if (event === 'PASSWORD_RECOVERY') {
+    recoverySessionActive = true;
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('forgotScreen').style.display = 'none';
     document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('resetCodeGroup').style.display = 'none';
+    document.getElementById('resetSub').textContent = 'Link verified — choose a new password.';
     document.getElementById('resetScreen').style.display = 'flex';
   }
 });
 
-if (window.location.hash.indexOf('type=recovery') !== -1 || window.location.search.indexOf('code=') !== -1) {
+if (window.location.hash.indexOf('error=') !== -1 && window.location.hash.indexOf('otp_expired') !== -1) {
+  history.replaceState(null, '', window.location.pathname);
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('resetScreen').style.display = 'none';
+  document.getElementById('forgotScreen').style.display = 'flex';
+  document.getElementById('forgotError').style.color = '#c0392b';
+  document.getElementById('forgotError').textContent = 'That reset link already expired or was used (often because a corporate email scanner opens it automatically). Use the 6-digit code from the email instead, or request a new one.';
+} else if (window.location.hash.indexOf('type=recovery') !== -1 || window.location.search.indexOf('code=') !== -1) {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('forgotScreen').style.display = 'none';
   document.getElementById('dashboard').style.display = 'none';
