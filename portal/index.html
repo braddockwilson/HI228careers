@@ -675,7 +675,16 @@ function showToast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-if (window.location.hash.indexOf('type=recovery') !== -1) {
+sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('forgotScreen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('resetScreen').style.display = 'flex';
+  }
+});
+
+if (window.location.hash.indexOf('type=recovery') !== -1 || window.location.search.indexOf('code=') !== -1) {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('forgotScreen').style.display = 'none';
   document.getElementById('dashboard').style.display = 'none';
